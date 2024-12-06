@@ -95,7 +95,9 @@ func main() {
 			numLoops++
 		}
 		i++
-		fmt.Printf("Progress: %d / %d \n", i, len(distinctPositions))
+		if i%250 == 0 || i == len(distinctPositions) {
+			fmt.Printf("Progress: %d / %d \n", i, len(distinctPositions))
+		}
 	}
 
 	fmt.Println("Part 2")
