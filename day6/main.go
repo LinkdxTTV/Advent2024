@@ -54,6 +54,8 @@ func main() {
 
 	fmt.Println(xMax, yMax)
 
+	// Part 1
+
 	currentPos := findInitialPosition(bigMap)
 	directionIndex := 0
 
@@ -78,6 +80,7 @@ func main() {
 		}
 	}
 
+	fmt.Println("Part 1")
 	fmt.Println(len(distinctPositions))
 	// Part 2
 	numLoops := 0
@@ -95,6 +98,7 @@ func main() {
 		fmt.Printf("Progress: %d / %d \n", i, len(distinctPositions))
 	}
 
+	fmt.Println("Part 2")
 	fmt.Println(numLoops)
 }
 
