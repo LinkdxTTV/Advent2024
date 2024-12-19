@@ -57,7 +57,7 @@ func main() {
 // use a quick global in recursion
 var memo map[string]int = map[string]int{}
 
-// NEED to go in order of descending length for towels
+// Tells you how many ways you can make "target" which could be a towel or anything
 func waysToMakeTowel(target string, towels []string) int {
 	ways := 0
 	if slices.Contains(towels, target) {
