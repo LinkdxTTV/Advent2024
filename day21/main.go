@@ -48,13 +48,15 @@ func main() {
 
 	sum := 0
 
+	maxIterations := 25
+
 	for _, direction := range directions {
 		fmt.Println(direction)
-		robotDirections := GenerateDirectionsOnPad(direction, "A", numpad)
-		fmt.Println(robotDirections)
-		for i := 0; i < 2; i++ {
-			robotDirections = GenerateDirectionsOnPad(robotDirections, "A", keypad)
-			fmt.Println(robotDirections)
+		robotDirections := GenerateDirectionsOnPad(direction, "A", numpad, maxIterations, 0)
+		// fmt.Println(robotDirections)
+		for i := 0; i < maxIterations; i++ {
+			robotDirections = GenerateDirectionsOnPad(robotDirections, "A", keypad, maxIterations, i)
+			// fmt.Println(robotDirections)
 		}
 
 		sequenceLength := len(robotDirections)
@@ -66,16 +68,16 @@ func main() {
 
 	fmt.Println(sum)
 
-	for i, direction := range []string{">>v", "v>>", "^>>", ">>^", "<<^", "^<<", "<<v", "v<<"} {
-		if i%2 == 0 {
-			fmt.Println()
-		}
-		robot := direction
-		for i := 0; i < 6; i++ {
-			robot = GenerateDirectionsOnPad(robot, "A", keypad)
-		}
-		fmt.Println(direction, len(robot))
-	}
+	// for i, direction := range []string{">v", "v>", "^>", ">^", "<^", "^<", "<v", "v<"} {
+	// 	if i%2 == 0 {
+	// 		fmt.Println()
+	// 	}
+	// 	robot := direction
+	// 	for i := 0; i < 1; i++ {
+	// 		robot = GenerateDirectionsOnPad(robot, "A", keypad, 1, i)
+	// 	}
+	// 	fmt.Println(direction, len(robot))
+	// }
 }
 
 func calculateNumericCode(input string) int {
@@ -87,22 +89,29 @@ func calculateNumericCode(input string) int {
 	return asInt
 }
 
-func GenerateDirectionsOnPad(input string, start string, pad [][]string) string {
+func GenerateDirectionsOnPad(input string, start string, pad [][]string, maxIterations, iteration int) string {
 	if input == "" {
 		return ""
 	}
-	outString := GeneratePath(start, string(input[0]), pad)
+	outString := GeneratePath(start, string(input[0]), pad, maxIterations, iteration)
 	outString += "A"
 	for i := 0; i < len(input)-1; i++ {
 		j := i + 1
-		outString += GeneratePath(string(input[i]), string(input[j]), pad)
+		outString += GeneratePath(string(input[i]), string(input[j]), pad, maxIterations, iteration)
 		outString += "A"
 	}
 	return outString
 }
 
+var memo = map[string]string{}
+
 // Does not include A's
-func GeneratePath(start, end string, pad [][]string) string {
+func GeneratePath(start, end string, pad [][]string, maxIterations, iteration int) string {
+	iterationsLeft := maxIterations - iteration
+	last2Iterations := iterationsLeft < 2
+	if out, ok := memo[fmt.Sprintf("%s.%s.%v", start, end, last2Iterations)]; ok {
+		return out
+	}
 	// Find startPoint and endPoint
 	var startPoint, endPoint = point{}, point{}
 	for y, row := range pad {
@@ -145,11 +154,23 @@ func GeneratePath(start, end string, pad [][]string) string {
 	}
 	outString := ""
 
-	// This is a bit tricky. You should always prefer the ordering in the following order: right, up, down, left
+	// This is a bit tricky. Depending on how far you are from the human input, the preference changes:
+
+	// If there are >= 2 iterations left,
 	// But we need to make sure we never hit the panic space
-	if diffX >= 0 && diffY >= 0 { // Right and Down // Go right first
-		outString += outStringX
-		outString += outStringY
+	if diffX >= 0 && diffY >= 0 { // Right and Down // Go down first
+		if (start == "1" || start == "4" || start == "7") && (end == "0" || end == "A") { // Go right first
+			outString += outStringX
+			outString += outStringY
+		} else {
+			if iterationsLeft <= 1 {
+				outString += outStringX
+				outString += outStringY
+			} else {
+				outString += outStringY
+				outString += outStringX
+			}
+		}
 	} else if diffX >= 0 && diffY <= 0 { // Right and Up// Go up first
 		if start == "<" {
 			outString += outStringX
@@ -158,19 +179,38 @@ func GeneratePath(start, end string, pad [][]string) string {
 			outString += outStringY
 			outString += outStringX
 		}
+	} else if diffX <= 0 && diffY <= 0 { // Left and Up || Go left first
+		if (start == "0" || start == "A") && (end == "1" || end == "4" || end == "7") { // Gotta go up first
+			outString += outStringY
+			outString += outStringX
+		} else {
+			if iterationsLeft <= 1 {
+				outString += outStringY
+				outString += outStringX
+			} else {
+				outString += outStringX
+				outString += outStringY
+			}
+		}
+
 	} else if diffX <= 0 && diffY >= 0 { // Left and Down || Go left first
 		if end == "<" {
 			outString += outStringY
 			outString += outStringX
 		} else {
-			outString += outStringX
-			outString += outStringY
+			if iterationsLeft <= 1 {
+				outString += outStringY
+				outString += outStringX
+			} else {
+				outString += outStringX
+				outString += outStringY
+			}
 		}
-	} else if diffX <= 0 && diffY <= 0 { // Left and Up || Go up first
-		outString += outStringY
-		outString += outStringX
 
 	}
-
+	memo[fmt.Sprintf("%s.%s.%v", start, end, last2Iterations)] = outString
 	return outString
 }
+
+// 242484
+// 294209504640384
