@@ -46,38 +46,74 @@ func main() {
 
 	fmt.Println(directions)
 
+	fmt.Println("====Part 1====")
+	maxDepth := 3
 	sum := 0
 
-	maxIterations := 25
-
 	for _, direction := range directions {
-		fmt.Println(direction)
-		robotDirections := GenerateDirectionsOnPad(direction, "A", numpad, maxIterations, 0)
-		// fmt.Println(robotDirections)
-		for i := 0; i < maxIterations; i++ {
-			robotDirections = GenerateDirectionsOnPad(robotDirections, "A", keypad, maxIterations, i)
-			// fmt.Println(robotDirections)
-		}
-
-		sequenceLength := len(robotDirections)
-		numericCode := calculateNumericCode(direction)
-
-		sum += sequenceLength * numericCode
-		fmt.Println(sequenceLength, numericCode)
+		length := GetSequenceLength(direction, maxDepth, maxDepth)
+		fmt.Println(length, calculateNumericCode(direction))
+		sum += length * calculateNumericCode(direction)
 	}
 
 	fmt.Println(sum)
 
-	// for i, direction := range []string{">v", "v>", "^>", ">^", "<^", "^<", "<v", "v<"} {
-	// 	if i%2 == 0 {
-	// 		fmt.Println()
-	// 	}
-	// 	robot := direction
-	// 	for i := 0; i < 1; i++ {
-	// 		robot = GenerateDirectionsOnPad(robot, "A", keypad, 1, i)
-	// 	}
-	// 	fmt.Println(direction, len(robot))
-	// }
+	// Part 2
+	fmt.Println("====Part 2====")
+	maxDepth = 26
+	sum = 0
+
+	for _, direction := range directions {
+		length := GetSequenceLength(direction, maxDepth, maxDepth)
+		fmt.Println(length, calculateNumericCode(direction))
+		sum += length * calculateNumericCode(direction)
+	}
+
+	fmt.Println(sum)
+
+}
+
+type sequenceDepth struct {
+	sequence string
+	depth    int
+}
+
+var sequenceMemo = map[sequenceDepth]int{}
+
+func GetSequenceLength(sequence string, depth, maxDepth int) int {
+	if out, ok := sequenceMemo[sequenceDepth{sequence, depth}]; ok {
+		return out
+	}
+
+	pad := [][]string{}
+	if depth == maxDepth {
+		pad = numpad
+	} else {
+		pad = keypad
+	}
+
+	length := 0
+	if depth == 0 {
+		length = len(sequence)
+	} else {
+		currentLetter := "A"
+		for _, nextLetter := range sequence {
+			lengthOfMove := getMoves(currentLetter, string(nextLetter), pad, depth, maxDepth)
+			currentLetter = string(nextLetter)
+			length += lengthOfMove
+		}
+	}
+
+	sequenceMemo[sequenceDepth{sequence, depth}] = length
+	return length
+}
+
+func getMoves(currentLetter, nextLetter string, pad [][]string, depth, maxDepth int) int {
+	if currentLetter == nextLetter {
+		return 1 // No need to move if the letters are the same, just press again
+	}
+
+	return GetSequenceLength(GeneratePath(currentLetter, nextLetter, pad), depth-1, maxDepth)
 }
 
 func calculateNumericCode(input string) int {
@@ -89,27 +125,11 @@ func calculateNumericCode(input string) int {
 	return asInt
 }
 
-func GenerateDirectionsOnPad(input string, start string, pad [][]string, maxIterations, iteration int) string {
-	if input == "" {
-		return ""
-	}
-	outString := GeneratePath(start, string(input[0]), pad, maxIterations, iteration)
-	outString += "A"
-	for i := 0; i < len(input)-1; i++ {
-		j := i + 1
-		outString += GeneratePath(string(input[i]), string(input[j]), pad, maxIterations, iteration)
-		outString += "A"
-	}
-	return outString
-}
+var pathMemo = map[string]string{}
 
-var memo = map[string]string{}
-
-// Does not include A's
-func GeneratePath(start, end string, pad [][]string, maxIterations, iteration int) string {
-	iterationsLeft := maxIterations - iteration
-	last2Iterations := iterationsLeft < 2
-	if out, ok := memo[fmt.Sprintf("%s.%s.%v", start, end, last2Iterations)]; ok {
+// Generate the string that would get us from start to end, including the A at the end
+func GeneratePath(start, end string, pad [][]string) string {
+	if out, ok := pathMemo[fmt.Sprintf("%s%s", start, end)]; ok {
 		return out
 	}
 	// Find startPoint and endPoint
@@ -163,13 +183,9 @@ func GeneratePath(start, end string, pad [][]string, maxIterations, iteration in
 			outString += outStringX
 			outString += outStringY
 		} else {
-			if iterationsLeft <= 1 {
-				outString += outStringX
-				outString += outStringY
-			} else {
-				outString += outStringY
-				outString += outStringX
-			}
+			outString += outStringY
+			outString += outStringX
+
 		}
 	} else if diffX >= 0 && diffY <= 0 { // Right and Up// Go up first
 		if start == "<" {
@@ -184,13 +200,8 @@ func GeneratePath(start, end string, pad [][]string, maxIterations, iteration in
 			outString += outStringY
 			outString += outStringX
 		} else {
-			if iterationsLeft <= 1 {
-				outString += outStringY
-				outString += outStringX
-			} else {
-				outString += outStringX
-				outString += outStringY
-			}
+			outString += outStringX
+			outString += outStringY
 		}
 
 	} else if diffX <= 0 && diffY >= 0 { // Left and Down || Go left first
@@ -198,19 +209,12 @@ func GeneratePath(start, end string, pad [][]string, maxIterations, iteration in
 			outString += outStringY
 			outString += outStringX
 		} else {
-			if iterationsLeft <= 1 {
-				outString += outStringY
-				outString += outStringX
-			} else {
-				outString += outStringX
-				outString += outStringY
-			}
+			outString += outStringX
+			outString += outStringY
 		}
 
 	}
-	memo[fmt.Sprintf("%s.%s.%v", start, end, last2Iterations)] = outString
+	outString += "A"
+	pathMemo[fmt.Sprintf("%s%s", start, end)] = outString
 	return outString
 }
-
-// 242484
-// 294209504640384
