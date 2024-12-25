@@ -8,7 +8,21 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"gonum.org/v1/gonum/stat/combin"
 )
+
+// READ ME
+
+// For part 2, I did the problem on pen and paper by analyzing how to form Z01.. Z02.. ETC. They form an adder circuit which has a predictable pattern. From there, it is easy to see where things go wrong
+/*
+		Z##
+	aaa XOR bbb
+ X XOR Y   ccc      OR      ddd
+		 X-1 XOR Y-1  Z-1 AND Z-1 (These are the previous two children of Z-1)
+
+		 etc
+*/
 
 type gate struct {
 	leftRegister   string
@@ -103,127 +117,50 @@ func main() {
 		}
 	}
 
-	for _, gate := range gates {
-		registerDependencyMap[gate.outputRegister] = []string{gate.leftRegister, gate.rightRegister}
+	mapFromIndexToGateString := map[int]string{}
+	for i, gate := range gates {
+		mapFromIndexToGateString[i] = gate.outputRegister
 	}
 
-	registerWasWrong := map[int]int{}
-	cleanRegisterCopy := makeRegisterCopy(register)
+	type similarity struct {
+		swap  []int
+		score int
+	}
 
-	for i := 0; i < 1000; i++ {
-		register = makeRegisterCopy(cleanRegisterCopy)
-		randomizeRegistersThatStartWithPrefix("x")
-		randomizeRegistersThatStartWithPrefix("y")
-
-		for i := 0; i < len(gates); i++ {
-			for _, gate := range gates {
-				register[gate.outputRegister] = instructionMap[gate.instruction](register[gate.leftRegister], register[gate.rightRegister])
-			}
+	scores := []similarity{}
+	for i, swap := range combin.Combinations(len(gates), 2) {
+		if i%1000 == 0 {
+			fmt.Println(i)
 		}
-		x := returnNumberFromRegistersStartingWith("x")
-		y := returnNumberFromRegistersStartingWith("y")
-		z := returnNumberFromRegistersStartingWith("z")
-		// fmt.Println("x  ", x)
-		// fmt.Println("y  ", y)
-		// fmt.Println("x+y", x+y)
-		// fmt.Println("z  ", z)
-		// fmt.Println("-- as binary --")
-		// fmt.Println("x  ", fmt.Sprintf("%b", x))
-		// fmt.Println("y  ", fmt.Sprintf("%b", y))
-		// fmt.Println("x+y", fmt.Sprintf("%b", x+y))
-		// fmt.Println("z  ", fmt.Sprintf("%b", z))
+		gateCopy := slices.Clone(gates)
+		gateCopy[swap[0]], gateCopy[swap[1]] = swapGates(gates[swap[0]], gates[swap[1]])
 
-		// Find out which registers are wrong
-		for i, char := range fmt.Sprintf("%b", x+y) {
-			if string(fmt.Sprintf("%b", z)[i]) != string(char) {
-				registerWasWrong[i]++
-			}
-		}
-	}
-	type wrongRegister struct {
-		register int
-		wrong    int
-	}
-
-	wrongRegisters := []wrongRegister{}
-	for k, v := range registerWasWrong {
-		wrongRegisters = append(wrongRegisters, wrongRegister{register: k, wrong: v})
-	}
-
-	slices.SortFunc(wrongRegisters, func(a, b wrongRegister) int {
-		return b.wrong - a.wrong
-	})
-
-	fmt.Println(wrongRegisters)
-
-	for _, wrongRegister := range wrongRegisters {
-		for i := 0; i < wrongRegister.wrong; i++ {
-			recursivelyAddBadRegistersToMap(fmt.Sprintf("z%d", wrongRegister.register), registerDependencyMap, 1)
-		}
-	}
-
-	type MentionedRegister struct {
-		register string
-		mentions int
-	}
-	mentionedRegistersList := []MentionedRegister{}
-	for k, v := range mentionedRegister {
-		mentionedRegistersList = append(mentionedRegistersList, MentionedRegister{
-			register: k,
-			mentions: v,
+		score := GetGateConfigurationScore(gateCopy)
+		scores = append(scores, similarity{
+			swap:  swap,
+			score: score,
 		})
 	}
 
-	slices.SortFunc(mentionedRegistersList, func(a, b MentionedRegister) int {
-		return b.mentions - a.mentions
+	slices.SortFunc(scores, func(a, b similarity) int {
+		return b.score - a.score
 	})
 
-	registersTaken := 0
-	swappableList := []string{}
-	for _, poss := range mentionedRegistersList {
-		if registersTaken == 12 {
-			break
-		}
-		if strings.HasPrefix(poss.register, "x") || strings.HasPrefix(poss.register, "y") {
-			continue
-		}
-		fmt.Println(poss.register, poss.mentions)
-		swappableList = append(swappableList, poss.register)
-		registersTaken++
+	fmt.Println(scores[:30])
+	gateCopy := slices.Clone(gates)
+	for _, poss := range scores[0:4] {
+		swap := poss.swap
+		gateCopy[swap[0]], gateCopy[swap[1]] = swapGates(gates[swap[0]], gates[swap[1]])
 	}
-
-	fmt.Println(swappableList)
-	indexToGateName := map[int]string{}
-	swappableListAsGateIndex := []int{}
-	for i, gate := range gates {
-		if slices.Contains(swappableList, gate.outputRegister) {
-			swappableListAsGateIndex = append(swappableListAsGateIndex, i)
-			indexToGateName[i] = gate.outputRegister
+	works := TestGateConfigurationGood(gateCopy)
+	if works {
+		out := []string{}
+		for _, poss := range scores[0:4] {
+			out = append(out, mapFromIndexToGateString[poss.swap[0]])
+			out = append(out, mapFromIndexToGateString[poss.swap[1]])
 		}
-	}
-	fmt.Println(swappableListAsGateIndex)
-
-	for a, order := range permutations(swappableListAsGateIndex) {
-		if a%100 == 0 {
-			fmt.Println(a)
-		}
-		swaps := order[:8]
-		gateCopy := slices.Clone(gates)
-
-		for n := 0; n < 4; n++ {
-			gateCopy[swaps[2*n]], gateCopy[swaps[2*n+1]] = swapGates(gates[swaps[2*n]], gates[swaps[2*n+1]])
-		}
-		register = makeRegisterCopy(cleanRegisterCopy)
-		works := TestGateConfigurationGood(gateCopy)
-		if works {
-			output := []string{}
-			for _, num := range swaps {
-				output = append(output, indexToGateName[num])
-			}
-
-			slices.Sort(output)
-			fmt.Println(strings.Join(output, ","))
-		}
+		slices.Sort(out)
+		fmt.Println(strings.Join(out, ","))
 	}
 }
 
@@ -335,7 +272,7 @@ func TestGateConfigurationGood(gates []gate) bool {
 
 func GetGateConfigurationScore(gates []gate) int {
 	score := 0
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		randomizeRegistersThatStartWithPrefix("x")
 		randomizeRegistersThatStartWithPrefix("y")
 		for i := 0; i < len(gates); i++ {
@@ -347,12 +284,19 @@ func GetGateConfigurationScore(gates []gate) int {
 		y := returnNumberFromRegistersStartingWith("y")
 		z := returnNumberFromRegistersStartingWith("z")
 
-		for i, char := range fmt.Sprintf("%b", x+y) {
-			if string(fmt.Sprintf("%b", z)[i]) == string(char) {
+		xyAsBin := fmt.Sprintf("%b", x+y)
+		zAsBin := fmt.Sprintf("%b", z)
+		// fmt.Println(xyAsBin, zAsBin, len(xyAsBin), len(zAsBin))
+		if len(xyAsBin) != len(zAsBin) {
+			continue
+		}
+		for i, char := range zAsBin {
+			if string(xyAsBin[i]) == string(char) {
 				score++
 			}
 		}
 	}
+	// fmt.Println(score)
 	return score
 }
 
